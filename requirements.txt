@@ -1,0 +1,12 @@
+asyncio
+crawl4ai
+playwright
+beautifulsoup4
+requests
+psycopg2-binary
+sqlalchemy
+pandas
+python-dotenv
+openai
+tqdm
+lxml
