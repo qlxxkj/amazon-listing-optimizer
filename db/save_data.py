@@ -1,8 +1,10 @@
 # db/save_data.py
-from sqlalchemy import Table, Column, Integer, String, Text, JSON, MetaData
+from sqlalchemy import Table, Column, Integer, String, Text, JSON, MetaData, DateTime, func,Boolean, Date, PrimaryKeyConstraint
 from sqlalchemy.orm import sessionmaker
 from db.db_config import engine, metadata
+import datetime
 import json
+import psycopg2
 
 Session = sessionmaker(bind=engine)
 
@@ -13,7 +15,8 @@ listings_table = Table(
     Column('url', String(1000)),
     Column('raw', Text),
     Column('cleaned', JSON),
-    Column('optimized', JSON, nullable=True)
+    Column('optimized', JSON, nullable=True),
+    Column('created_at', DateTime, default=datetime.datetime.utcnow)  # 新增字段
 )
 
 def create_tables():
@@ -21,9 +24,15 @@ def create_tables():
 
 def save_raw_and_clean(url, raw_html, clean_json):
     session = Session()
-    ins = listings_table.insert().values(url=url, raw=raw_html, cleaned=clean_json)
+    ins = listings_table.insert().values(
+        url=url,
+        raw=raw_html,
+        cleaned=clean_json,
+        created_at=datetime.datetime.utcnow()   # 👈 保存时写入时间
+        )
     session.execute(ins)
     session.commit()
+    print(f"[DB] Saved raw+clean for {url}")
     session.close()
 
 def update_optimized(url, optimized_json):
@@ -31,4 +40,65 @@ def update_optimized(url, optimized_json):
     stmt = listings_table.update().where(listings_table.c.url == url).values(optimized=optimized_json)
     session.execute(stmt)
     session.commit()
+    print(f"[DB] Updated optimized for {url}")
     session.close()
+
+# 2025-11-06判断每个站点是否每天第一次执行添加
+
+daily_run_table = Table(
+    'daily_run', metadata,
+    Column('site', String(50), nullable=False),
+    Column('date', Date, nullable=False),
+    Column('executed', Boolean, default=False, nullable=False),
+    PrimaryKeyConstraint('site', 'date')
+)
+
+def check_if_first_run(site: str, date: str) -> bool:
+    session = Session()
+    record = session.query(daily_run_table).filter_by(site=site, date=date).first()
+    session.close()
+    return record is None or not record.executed
+
+def update_run_status(site: str, date: str):
+    session = Session()
+    stmt = daily_run_table.insert().values(site=site, date=date, executed=True)
+    session.execute(stmt)
+    session.commit()
+    session.close()
+
+
+# def get_all_cleaned(start_date=None, end_date=None):
+#     """
+#     从数据库获取 cleaned 商品数据，支持按日期过滤。
+#     日期格式: 'YYYY-MM-DD'
+#     """
+#     """
+#     使用原始 SQL 查询的版本
+#     """
+#     session = Session()
+
+#     try:
+#         sql = "SELECT url, cleaned, optimized, created_at FROM listings WHERE 1=1"
+#         params = {}
+
+#         if start_date:
+#             sql += " AND DATE(created_at) >= :start_date"
+#             params['start_date'] = start_date
+#         if end_date:
+#             sql += " AND DATE(created_at) <= :end_date"
+#             params['end_date'] = end_date
+
+#         sql += " ORDER BY created_at DESC"
+
+#         from sqlalchemy import text
+#         result = session.execute(text(sql), params)
+#         rows = result.fetchall()
+
+#         # 转换为字典格式
+#         columns = ['url', 'cleaned', 'optimized', 'created_at']
+#         result_dicts = [dict(zip(columns, row)) for row in rows]
+
+#         return result_dicts
+
+#     finally:
+#         session.close()
