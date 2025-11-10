@@ -45,7 +45,7 @@ DOMAIN_TO_LANG = {
     # 可根据需要继续添加
 }
 
-
+# 检测域名语言，为匹配PROMPTS
 def detect_lang_from_url(url: str) -> str:
     """
     根据 Amazon 域名判断站点语言。
@@ -134,17 +134,20 @@ def optimize_listing_struct(cleaned, site="us", url=""):
     desc = cleaned.get("description", "")
     features = cleaned.get("features", [])
     features_text = "\n".join(f"- {f}" for f in features)
+    brand = cleaned.get("brand","")
 
     input_text = f"""
         Optimize this Amazon listing:
         Title: {title}
         Description: {desc}
-        Features:
-        {features_text}
+        Features: {features_text}
         Output a JSON with:
-        - title_optimized
-        - features_optimized
-        - description_optimized
+        - optimized_title
+        - optimized_features
+        - optimized_description
+        - search_keywords
+        Please ensure the output is in the language of the input site ({lang}).
+        No brand ({brand}) are allowed.
         """
 
     logger.info(f"🟦 第二次调用（含字段内容）: {len(input_text)} chars")
@@ -179,153 +182,3 @@ def optimize_listing_struct(cleaned, site="us", url=""):
         # logger.error(f"Error calling OpenAI API: {e}")
         logger.error(f"❌ 第二次调用失败: {e}")
         return {"error": f"OpenAI API call failed: {str(e)}"}
-
-
-
-##############################################################
-#
-#  optimize_listing_struct-V2.0
-#
-##############################################################
-#
-# def optimize_listing_struct(cleaned: Dict[str, Any], url: str = "") -> Dict[str, Any]:
-#     """
-#     使用OpenAI API优化亚马逊商品Listing结构。
-
-#     根据站点和日期判断是否是第一次执行，如果是第一次执行，发送完整的Prompt模板；否则，只发送要优化的字段（title, description, features）。
-
-#     Args:
-#         cleaned: 包含商品信息的字典。
-#         url: 商品页面的完整URL字符串。
-
-#     Returns:
-#         Dict[str, Any]: 优化后的商品信息或错误信息。
-#     """
-#     # 在函数开头添加详细的URL日志
-#     logger.info(f"Received URL : '{url}'")
-#     # 提取站点信息 使用接收到的URL来判断语言
-#     lang = detect_lang_from_url(url) # 这里使用了从 server.py 传来的 url
-#     logger.info(f"Using language '{lang}' for optimization based on URL: {url}")
-#     # 构造{input}数据
-#     input_json = '{"title": "%s", "description": "%s", "features": "%s"}' % (
-#             cleaned.get("title", ""),
-#             cleaned.get("description", ""),
-#             ", ".join(cleaned.get("features", []))
-#         )
-#     # 检查是否是第一次执行
-#     today = datetime.now().strftime("%Y-%m-%d")
-#     is_first_run = check_if_first_run(site=lang, date=today)
-
-#     # 根据是否是第一次执行，决定使用完整的Prompts模板还是只发送优化字段
-#     if is_first_run:
-#         prompt_template = PROMPTS.get(lang)
-#         if not prompt_template:
-#             prompt_template = PROMPTS["en"]  # 默认使用英语
-#         prompt = prompt_template.replace("{input}", input_json)
-#         # prompt = prompt_template
-#     else:
-#         # 第二次及之后的调用，只发送优化字段
-#         prompt = '{"title": "%s", "description": "%s", "features": "%s"}' % (
-#             cleaned.get("title", ""),
-#             cleaned.get("description", ""),
-#             ", ".join(cleaned.get("features", []))
-#         )
-
-#     # 打印发给gpt的Prompts
-#     logger.info(f"Prompt sent to OpenAI: {prompt}")
-
-#     # 调用OpenAI API
-#     try:
-#         res = client.chat.completions.create(
-#             model=MODEL,
-#             messages=[{"role": "user", "content": prompt}],
-#             max_tokens=1500,
-#             temperature=0.6,
-#         )
-
-#         text = res.choices[0].message.content
-
-#         # 尝试解析 JSON
-#         try:
-#             return json.loads(text)
-#         except json.JSONDecodeError:
-#             logger.error(f"Failed to parse JSON from OpenAI response: {text}")
-#             return {"error": "OpenAI response could not be parsed into JSON."}
-
-#     except Exception as e:
-#         logger.error(f"Error calling OpenAI API: {e}")
-#         return {"error": f"OpenAI API call failed: {str(e)}"}
-
-#     # 每次调用后，更新执行状态为已执行
-#     update_run_status(site=lang, date=today)
-
-
-
-
-##############################################################
-#
-# optimize_listing_struct-V1.0
-#
-##############################################################
-#
-# def optimize_listing_struct(cleaned: Dict[str, Any], url: str = "") -> Dict[str, Any]:
-#     """
-#     使用OpenAI API优化亚马逊商品Listing结构。
-
-#     根据站点和日期判断是否是第一次执行，如果是第一次执行，发送完整的Prompt模板；否则，只发送要优化的字段（title, description, features）。
-
-#     Args:
-#         cleaned: 包含商品信息的字典。
-#         url: 商品页面的完整URL字符串。
-
-#     Returns:
-#         Dict[str, Any]: 优化后的商品信息或错误信息。
-#     """
-#     # 在函数开头添加详细的URL日志
-#     logger.info(f"Received URL : '{url}'")
-
-#     # 准备输入数据
-#     inp_json = json.dumps(cleaned, ensure_ascii=False, indent=2)
-
-#     # 提取站点信息 使用接收到的URL来判断语言
-#     lang = detect_lang_from_url(url) # 这里使用了从 server.py 传来的 url
-#     logger.info(f"Using language '{lang}' for optimization based on URL: {url}")
-
-
-#     # 获取对应的Prompt模板
-#     prompt_template = PROMPTS.get(lang)
-#     if not prompt_template:
-#         logger.warning(f"No prompt template for language '{lang}', defaulting to 'en'")
-#         prompt_template = PROMPTS["en"]
-
-#     prompt = prompt_template.replace("{input}", inp_json)
-
-#     # 调用OpenAI API
-#     try:
-#         res = client.chat.completions.create(
-#             model=MODEL,
-#             messages=[{"role": "user", "content": prompt}],
-#             max_tokens=1500,
-#             temperature=0.6,
-#             response_format={"type": "json_object"}  # 明确要求JSON格式
-#         )
-
-#         text = res.choices[0].message.content
-
-#         # 尝试解析JSON
-#         try:
-#             return json.loads(text)
-#         except json.JSONDecodeError:
-#             # 如果直接解析失败，尝试提取JSON对象
-#             import re
-#             json_match = re.search(r"\{.*\}", text, re.DOTALL)
-#             if json_match:
-#                 try:
-#                     return json.loads(json_match.group())
-#                 except json.JSONDecodeError:
-#                     return {"raw_output": text}
-#             return {"raw_output": text}
-
-#     except Exception as e:
-#         logger.error(f"Error calling OpenAI API: {e}")
-#         return {"error": f"OpenAI API call failed: {str(e)}"}

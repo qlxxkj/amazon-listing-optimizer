@@ -49,6 +49,7 @@ async def crawl_url(url, proxy=None, include_images=True, wait_for=None):
             max_wait_time=5,
             user_agent= user_agent,
             headers= headers,
+            encoding = "utf-8",
         )
         # result has `.html`, `.markdown`, `.json` depending on crawl4ai version
         return result.html if hasattr(result, 'html') else result.content

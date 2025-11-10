@@ -13,6 +13,7 @@ BASE_SELECTORS = {
     "brand": "tr:has(th:-soup-contains('Brand')) td", #
     "BSR": "tr:has(th:-soup-contains('Best Sellers Rank')) td",
     "Date_First_Available": "tr:has(th:-soup-contains('Date First Available')) td",
+    "OEM Part Number":"tr:has(th:-soup-contains('OEM Part Number')) td",
 }
 
 # ============ 多语言价格选择器 ============
@@ -84,6 +85,7 @@ SELECTORS = {
     "brand": BASE_SELECTORS['brand'],
     "BSR": BASE_SELECTORS['BSR'],
     "Date_First_Available": BASE_SELECTORS['Date_First_Available'],
+    "OEM_Part_Number": BASE_SELECTORS['OEM Part Number'],
 
     "price": PRICE_SELECTORS,
     "product_dimensions": PRODUCT_DIMENSIONS_SELECTORS,
