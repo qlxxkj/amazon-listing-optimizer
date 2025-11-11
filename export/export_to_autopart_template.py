@@ -14,7 +14,6 @@ FIELD_MAPPING = {
     "optimized_description": "Product Description",
     "optimized_features": "Bullet Point",
     "search_keywords": "Item Type Keyword",
-    "price": "List Price",
     "main_image": "Main Image URL",
 }
 
@@ -27,10 +26,11 @@ FINAL_DEFAULTS = {
     "Brand Name": "YvuLDeQP",
     "Manufacturer": "YvuLDeQP",
     "Product ID Type": "EAN",
-    "Fulfillment Center ID": "DEFAULT",
+    "Fulfillment Channel Code (US)": "DEFAULT",
     "Item Condition": "New",
-    "Quantity (US)": "100",
-    "Inventory Always Available (US)": "Enabled",
+    "Quantity (US)": "100",  # Inventory Always Available (US) 如果选 Enable或disable 则该数量值为0
+    "Handling Time (US)": 5,
+    # "Inventory Always Available (US)": "Enabled",
     "Merchant Shipping Group (US)": "Migrated Template",
     "Number of Items": "1",
     "Exterior Finish": "Polished",
@@ -44,6 +44,7 @@ FINAL_DEFAULTS = {
     "Product Compliance Certificate": "Not Applicable",
     "Package Level": "Unit",
 }
+
 
 # ======================================================
 # 🧮 三、唯一编码生成
@@ -170,6 +171,8 @@ def export_to_autopart_template(start_date=None, end_date=None, template_path="t
         cleaned = item
         optimized = item.get("optimized", {}) or {}
 
+        features = optimized.get("optimized_features") or cleaned.get("features", [])
+
         sku = generate_random_code()
         model_num = generate_random_code()
         model_name = generate_random_code()
@@ -206,11 +209,23 @@ def export_to_autopart_template(start_date=None, end_date=None, template_path="t
                 col_idx = match_column(col_name, headers)
                 if col_idx:
                     val = optimized.get(field, "")  # 获取优化过的字段
-                    if field == "price": val = price
                     ws.cell(row=row, column=col_idx, value=safe_value(val))
 
-            # 长宽高/重量
-            for k, val in {
+            # 写入默认字段
+            for field, val in FINAL_DEFAULTS.items():
+                col_idx = match_column(field, headers)
+                if col_idx:
+                    ws.cell(row=row, column=col_idx, value=val)
+
+            # 写入五点
+            if "bullet point" in headers:
+                bullet_cols = headers["bullet point"]
+                for i, col_idx in enumerate(bullet_cols):
+                    if i < len(features):
+                        ws.cell(row=row, column=col_idx, value=features[i])
+
+            Extra_FIELD= {
+                # 商品尺寸和重量
                 "Item Length": length,
                 "Item Width": width,
                 "Item Height": height,
@@ -219,7 +234,27 @@ def export_to_autopart_template(start_date=None, end_date=None, template_path="t
                 "Item Height Unit": unit,
                 "Item Weight": weight_val,
                 "Item Weight Unit": weight_unit,
-            }.items():
+                # 包装尺寸和重量
+                "Item Package Length": length,
+                "Item Package Width": width,
+                "Item Package Height": height,
+                "Package Length Unit": unit,
+                "Package Width Unit": unit,
+                "Package Height Unit": unit,
+                "Package Weight": weight_val,
+                "Package Weight Unit": weight_unit,
+                # 唯一编码
+                "External Product ID": ean,
+                "Model Number": model_num,
+                "Model Name": model_name,
+                "Part Number": part_num,
+                "OEM Equivalent Part Number": OEM,
+                "List Price": price,
+                "Your Price USD (Sell on Amazon, US)": price,
+            }
+
+            # 写入额外字段
+            for k, val in Extra_FIELD.items():
                 col_idx = match_column(k, headers)
                 if col_idx:
                     ws.cell(row=row, column=col_idx, value=val)
@@ -234,23 +269,6 @@ def export_to_autopart_template(start_date=None, end_date=None, template_path="t
                     if i < len(other_imgs):
                         ws.cell(row=row, column=col_idx, value=other_imgs[i])
 
-            # 写入默认字段
-            for field, val in FINAL_DEFAULTS.items():
-                col_idx = match_column(field, headers)
-                if col_idx:
-                    ws.cell(row=row, column=col_idx, value=val)
-            # 写入唯一编码
-            extras = {
-                "External Product ID": ean,
-                "Model Number": model_num,
-                "Model Name": model_name,
-                "Part Number": part_num,
-                "OEM Equivalent Part Number": OEM,
-            }
-            for k, v in extras.items():
-                col_idx = match_column(k, headers)
-                if col_idx:
-                    ws.cell(row=row, column=col_idx, value=v)
             row += 1
 
     os.makedirs("out", exist_ok=True)
