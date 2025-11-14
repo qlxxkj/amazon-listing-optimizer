@@ -1,33 +1,12 @@
 # export_csv.py
 import os, csv
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import select, and_, func
-from db.db_config import engine
-from db.save_data import listings_table
+from db.save_data import get_all_data
 
-Session = sessionmaker(bind=engine)
+
 
 def export_to_csv(output_path="out/result.csv", start_date=None, end_date=None):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    session = Session()
-
-    query = select(listings_table)
-    if start_date and end_date:
-        query = query.where(
-            and_(
-                listings_table.c.created_at >= start_date,
-                listings_table.c.created_at < end_date + " 23:59:59"
-            )
-        )
-    elif start_date:
-        query = query.where(listings_table.c.created_at >= start_date)
-    elif end_date:
-        query = query.where(listings_table.c.created_at < end_date + " 23:59:59")
-
-    rows = session.execute(query).all()
-    if not rows:
-        print("[EXPORT] 没有符合条件的数据")
-        return
+    rows = get_all_data(start_date=start_date,end_date=end_date)
 
     with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -97,5 +76,4 @@ def export_to_csv(output_path="out/result.csv", start_date=None, end_date=None):
 
             ])
 
-    session.close()
     print(f"[EXPORT] 已生成 {output_path}，共 {len(rows)} 条数据")

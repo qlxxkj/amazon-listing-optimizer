@@ -5,6 +5,7 @@ from db.db_config import engine, metadata
 import datetime
 import json
 import psycopg2
+from sqlalchemy import select, and_
 
 Session = sessionmaker(bind=engine)
 
@@ -66,89 +67,25 @@ def update_run_status(site: str, date: str):
     session.commit()
     session.close()
 
-
-def get_all_cleaned(start_date=None, end_date=None):
-    """
-    从数据库获取 cleaned 商品数据，支持按日期过滤。
-    日期格式: 'YYYY-MM-DD'
-    """
-    """
-    使用原始 SQL 查询的版本
-    """
+def get_all_data(start_date=None,end_date=None):
     session = Session()
 
-    try:
-        sql = "SELECT url, cleaned, optimized, created_at FROM listings WHERE 1=1"
-        params = {}
+    query = select(listings_table)
+    if start_date and end_date:
+        query = query.where(
+            and_(
+                listings_table.c.created_at >= start_date,
+                listings_table.c.created_at < end_date + " 23:59:59"
+            )
+        )
+    elif start_date:
+        query = query.where(listings_table.c.created_at >= start_date)
+    elif end_date:
+        query = query.where(listings_table.c.created_at < end_date + " 23:59:59")
 
-        if start_date:
-            sql += " AND DATE(created_at) >= :start_date"
-            params['start_date'] = start_date
-        if end_date:
-            sql += " AND DATE(created_at) <= :end_date"
-            params['end_date'] = end_date
-
-        sql += " ORDER BY created_at DESC"
-
-        from sqlalchemy import text
-        result = session.execute(text(sql), params)
-        rows = result.fetchall()
-
-        # 转换为字典格式
-        columns = ['url', 'cleaned', 'optimized', 'created_at']
-        result_dicts = [dict(zip(columns, row)) for row in rows]
-
-        return result_dicts
-
-    finally:
-        session.close()
-
-
-def load_cleaned_data_by_date(start_date=None, end_date=None):
-    """
-    从数据库中加载指定日期范围内的清洗 + 优化数据，
-    并整理为结构化字典，供 export_to_autopart_template 使用。
-    """
-    records = get_all_cleaned(start_date, end_date)
-    results = []
-
-
-    for r in records:
-        # 修复：直接从数据库读取的 JSON 字段已经是字典，不需要 json.loads
-        cleaned = r.get("cleaned") or {}
-        optimized = r.get("optimized") or {}
-
-        # 如果数据是字符串格式（兼容旧数据），则尝试解析
-        if isinstance(cleaned, str):
-            try:
-                cleaned = json.loads(cleaned) if cleaned else {}
-            except Exception as e:
-                print(f"[WARN] Failed to parse cleaned JSON string: {e}")
-                cleaned = {}
-
-        if isinstance(optimized, str):
-            try:
-                optimized = json.loads(optimized) if optimized else {}
-            except Exception as e:
-                print(f"[WARN] Failed to parse optimized JSON string: {e}")
-                optimized = {}
-
-        results.append({
-            "url": r.get("url"),
-            "asin": cleaned.get("asin", ""),
-            "title": cleaned.get("title", ""),
-            "price": cleaned.get("price", ""),
-            "brand": cleaned.get("brand", ""),
-            "features": cleaned.get("features", []),
-            "description": cleaned.get("description", ""),
-            "main_image": cleaned.get("main_image", ""),
-            "other_images": cleaned.get("other_images", []),
-            "category": cleaned.get("category", ""),
-            "product_dimensions": cleaned.get("product_dimensions", ""),
-            "item_weight": cleaned.get("item_weight", ""),
-            "shipping": cleaned.get("shipping", ""),
-            "variants": cleaned.get("variants", []),
-            "optimized": optimized,
-            "created_at": r.get("created_at"),
-        })
-    return results
+    rows = session.execute(query).all()
+    if not rows:
+        print("[EXPORT] 没有符合条件的数据")
+        return
+    session.close()
+    return rows
